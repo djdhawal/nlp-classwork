@@ -24,3 +24,7 @@ checkpoints/
 .vscode/
 __pycache__/
 .ipynb_checkpoints/
+
+# Week 6 data and exercise outputs
+Week6/data/
+ex6_results/

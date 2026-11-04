@@ -1,0 +1,8 @@
+# Qdrant for the Week 6 RAG notebooks:  docker compose up -d
+services:
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
