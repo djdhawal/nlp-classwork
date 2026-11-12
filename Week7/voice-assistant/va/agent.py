@@ -140,6 +140,7 @@ class Agent:
         self.clock = clock or (lambda: datetime.now(self.tz).replace(tzinfo=None))
         self.history: list[dict] = []
         self.guards = bool(cfg["llm"].get("guards", True))
+        self._send_think = cfg["llm"].get("think") is not None
 
     # -- prompt ---------------------------------------------------------------
     def system_prompt(self, memories: list[dict]) -> str:
@@ -239,14 +240,11 @@ class Agent:
         turn = [{"role": "user", "content": user_text}]
         kwargs = {"options": {"temperature": self.cfg["llm"].get("temperature", 0)},
                   "keep_alive": self.cfg["llm"].get("keep_alive")}
-        if self.cfg["llm"].get("think") is not None:
-            kwargs["think"] = self.cfg["llm"]["think"]
-
         reply = ""
         for _ in range(int(self.cfg["llm"].get("max_tool_rounds", 6))):
             messages = [{"role": "system", "content": self.system_prompt(memories)}] + self.history + turn
             gate, content, calls = _TextGate(text_sink), "", []
-            for chunk in self.client.chat(model=self.model, messages=messages, tools=TOOLS, stream=True, **kwargs):
+            for chunk in self._stream(messages, kwargs):
                 msg = chunk.message
                 if msg.content:
                     content += msg.content
@@ -290,6 +288,20 @@ class Agent:
         result.seconds = time.perf_counter() - t0
         log.info("turn model=%s %.2fs user=%r reply=%r", self.model, result.seconds, user_text, reply)
         return result
+
+    def _stream(self, messages: list[dict], kwargs: dict):
+        """Stream one model reply. Models that reject the `think` flag are retried without it."""
+        if self._send_think:
+            kwargs = {**kwargs, "think": self.cfg["llm"]["think"]}
+        try:
+            yield from self.client.chat(model=self.model, messages=messages, tools=TOOLS, stream=True, **kwargs)
+        except ollama.ResponseError as exc:
+            if "think" not in kwargs or "think" not in str(exc).lower():
+                raise
+            log.info("%s does not take the think flag; not sending it again", self.model)
+            self._send_think = False
+            kwargs = {k: v for k, v in kwargs.items() if k != "think"}
+            yield from self.client.chat(model=self.model, messages=messages, tools=TOOLS, stream=True, **kwargs)
 
     def _trim_history(self) -> None:
         keep = int(self.cfg["assistant"].get("history_turns", 8))

@@ -133,10 +133,9 @@ def run_stage2(cfg: dict) -> dict:
     a.speaker.wait()
     a.speaker.say("This is a long sentence that keeps going and going so that we have time to interrupt it in the middle.")
     time.sleep(1.0)
-    proc = a.speaker._proc
     t1 = time.perf_counter()
     a.stop_speaking()
-    while proc is not None and proc.poll() is None:
+    while not a.speaker.silent():
         time.sleep(0.005)
     stop = time.perf_counter() - t1
     print(f"first words after {first:.2f} s (need < 4)   ->  {'PASS' if first < 4 else 'FAIL'}")

@@ -70,3 +70,15 @@ tts:
 logging:
   path: "logs/assistant.log"
   level: "INFO"
+
+# Applied on top of the settings above when running on Google Colab (detected automatically).
+# Colab has no microphone, speaker, Docker or Apple GPU, so: Linux model tags, embedded Qdrant,
+# clips recorded in the browser, and speech played in the notebook.
+colab:
+  llm.model: "qwen3:8b"
+  llm.compare_models: ["qwen3:8b", "llama3.1:8b"]
+  memory.qdrant_path: "data/qdrant"
+  audio.enabled: false
+  audio.calibration_seconds: 0.3     # each browser clip starts with a short quiet moment
+  stt.compute_type: "float16"        # GPU runtime
+  tts.backend: "notebook"

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
+import sys
 import logging.handlers
 from pathlib import Path
 
@@ -12,11 +14,22 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = PROJECT_DIR / "config.yaml"
 
 
+def on_colab() -> bool:
+    return "google.colab" in sys.modules or "COLAB_RELEASE_TAG" in os.environ
+
+
 def load_config(path: str | Path | None = None, **overrides) -> dict:
-    """Read the YAML config. `overrides` are dotted keys, e.g. {"llm.model": "qwen3:8b"}."""
+    """Read the YAML config. `overrides` are dotted keys, e.g. {"llm.model": "qwen3:8b"}.
+
+    On Google Colab the `colab:` section of the config is applied first.
+    """
     path = Path(path or DEFAULT_CONFIG).resolve()
     cfg = yaml.safe_load(path.read_text())
     cfg["_dir"] = str(path.parent)
+    cfg["_colab"] = on_colab()
+    if cfg["_colab"]:
+        for dotted, value in (cfg.get("colab") or {}).items():
+            set_key(cfg, dotted, value)
     for dotted, value in overrides.items():
         set_key(cfg, dotted, value)
     return cfg

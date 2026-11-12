@@ -5,7 +5,9 @@ import json
 import logging
 import re
 import threading
+import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 
 import ollama
@@ -50,14 +52,34 @@ class MemoryStore:
         self.embed_model = e["model"]
         self.q_prefix, self.d_prefix = e.get("query_prefix", ""), e.get("document_prefix", "")
         self.llm = ollama.Client(host=cfg["llm"]["host"])
-        if m.get("qdrant_path"):
-            path = resolve_path(cfg, m["qdrant_path"])
-            path.mkdir(parents=True, exist_ok=True)
-            self.qdrant = QdrantClient(path=str(path))
-        else:
-            self.qdrant = QdrantClient(url=m["qdrant_url"])
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._ready = False
+        self._path = resolve_path(cfg, m["qdrant_path"]) if m.get("qdrant_path") else None
+        if self._path is None:
+            self._server = QdrantClient(url=m["qdrant_url"])
+        else:
+            self._path.mkdir(parents=True, exist_ok=True)
+
+    @contextmanager
+    def db(self):
+        """The Qdrant client. An embedded store (qdrant_path) locks its folder, so it is opened only
+        for each operation; then the notebook and the Streamlit page can both use it."""
+        if self._path is None:
+            yield self._server
+            return
+        with self._lock:
+            for attempt in range(50):
+                try:
+                    client = QdrantClient(path=str(self._path))
+                    break
+                except RuntimeError as exc:          # another process has it open right now
+                    if "already accessed" not in str(exc) or attempt == 49:
+                        raise
+                    time.sleep(0.1)
+            try:
+                yield client
+            finally:
+                client.close()
 
     # -- vectors ------------------------------------------------------------
     def embed(self, texts: list[str], prefix: str) -> list[list[float]]:
@@ -65,11 +87,11 @@ class MemoryStore:
                               keep_alive=self.cfg["llm"].get("keep_alive"))
         return resp.embeddings
 
-    def _ensure_collection(self, dim: int) -> None:
-        if self._ready:
+    def _ensure_collection(self, q, dim: int) -> None:
+        if self._ready and self._path is None:
             return
-        if not self.qdrant.collection_exists(self.collection):
-            self.qdrant.create_collection(self.collection, vectors_config=VectorParams(size=dim, distance=Distance.COSINE))
+        if not q.collection_exists(self.collection):
+            q.create_collection(self.collection, vectors_config=VectorParams(size=dim, distance=Distance.COSINE))
         self._ready = True
 
     # -- public API ---------------------------------------------------------
@@ -81,44 +103,48 @@ class MemoryStore:
         if looks_like_schedule(text, strict=(source != "user")):
             return {"stored": False, "reason": "appointments belong in the calendar, not memory"}
         vec = self.embed([text], self.d_prefix)[0]
-        with self._lock:
-            self._ensure_collection(len(vec))
-            hits = self._query(vec, 1)
+        with self._lock, self.db() as q:
+            self._ensure_collection(q, len(vec))
+            hits = self._query(q, vec, 1)
             if hits and hits[0]["score"] >= self.dup_score:
                 return {"stored": False, "reason": "already known", "existing": hits[0]["text"]}
             pid = str(uuid.uuid4())
-            self.qdrant.upsert(self.collection, points=[PointStruct(
+            q.upsert(self.collection, points=[PointStruct(
                 id=pid, vector=vec,
                 payload={"text": text, "source": source, "created_at": datetime.now().isoformat(timespec="seconds")})])
         log.info("memory stored (%s): %s", source, text)
         return {"stored": True, "id": pid, "text": text}
 
-    def _query(self, vec, k: int) -> list[dict]:
-        res = self.qdrant.query_points(self.collection, query=vec, limit=k, with_payload=True)
+    def _query(self, q, vec, k: int) -> list[dict]:
+        res = q.query_points(self.collection, query=vec, limit=k, with_payload=True)
         return [{"id": str(p.id), "text": p.payload["text"], "score": float(p.score)} for p in res.points]
 
     def search(self, query: str, k: int | None = None) -> list[dict]:
-        if not query.strip() or not self.qdrant.collection_exists(self.collection):
+        if not query.strip():
             return []
         vec = self.embed([query], self.q_prefix)[0]
-        with self._lock:
-            self._ensure_collection(len(vec))
-            hits = self._query(vec, k or self.top_k)
+        with self.db() as q:
+            if not q.collection_exists(self.collection):
+                return []
+            hits = self._query(q, vec, k or self.top_k)
         return [h for h in hits if h["score"] >= self.min_score]
 
     def all(self) -> list[dict]:
-        if not self.qdrant.collection_exists(self.collection):
-            return []
-        points, _ = self.qdrant.scroll(self.collection, limit=500, with_payload=True)
+        with self.db() as q:
+            if not q.collection_exists(self.collection):
+                return []
+            points, _ = q.scroll(self.collection, limit=500, with_payload=True)
         rows = [{"id": str(p.id), **p.payload} for p in points]
         return sorted(rows, key=lambda r: r.get("created_at", ""))
 
     def delete(self, point_id: str) -> None:
-        self.qdrant.delete(self.collection, points_selector=[point_id])
+        with self.db() as q:
+            q.delete(self.collection, points_selector=[point_id])
 
     def clear(self) -> None:
-        if self.qdrant.collection_exists(self.collection):
-            self.qdrant.delete_collection(self.collection)
+        with self.db() as q:
+            if q.collection_exists(self.collection):
+                q.delete_collection(self.collection)
         self._ready = False
 
     # -- background fact extraction -----------------------------------------
@@ -126,12 +152,15 @@ class MemoryStore:
         """Ask the chat model for lasting personal facts in what the user said."""
         if not _FIRST_PERSON.search(user_text):
             return []          # "yes", "what is on my calendar"... -> skip the LLM call entirely
-        kwargs = {}
-        if self.cfg["llm"].get("think") is not None:
-            kwargs["think"] = self.cfg["llm"]["think"]
-        resp = self.llm.chat(model=model, messages=[{"role": "user", "content": EXTRACT_PROMPT + user_text}],
-                             format="json", options={"temperature": 0}, keep_alive=self.cfg["llm"].get("keep_alive"),
-                             **kwargs)
+        kwargs = dict(model=model, messages=[{"role": "user", "content": EXTRACT_PROMPT + user_text}],
+                      format="json", options={"temperature": 0}, keep_alive=self.cfg["llm"].get("keep_alive"))
+        try:
+            think = self.cfg["llm"].get("think")
+            resp = self.llm.chat(**kwargs, **({} if think is None else {"think": think}))
+        except ollama.ResponseError as exc:
+            if "think" not in str(exc).lower():
+                raise
+            resp = self.llm.chat(**kwargs)          # this model does not take the think flag
         try:
             facts = json.loads(resp.message.content).get("facts", [])
         except (json.JSONDecodeError, AttributeError):

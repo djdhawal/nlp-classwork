@@ -22,6 +22,10 @@ pip install -r requirements.txt
 
 Linux also needs `sudo apt install espeak-ng portaudio19-dev`. On macOS, allow microphone access for the Terminal (or VS Code / Jupyter) app under System Settings, Privacy & Security, Microphone.
 
+### On Google Colab
+
+Open the notebook on a GPU runtime and run it top to bottom. It detects Colab (like Exercise 6.1): the project goes to `MyDrive/ADS-NLP/Week7/voice-assistant`, Ollama is installed and the models are pulled in the runtime, and the `colab:` section of `config.yaml` switches to `qwen3:8b` / `llama3.1:8b`, embedded Qdrant on Drive, and browser audio (`va/colab.py` records clips with the browser's mic; replies play in the cell output). Colab cannot listen continuously, so Stage 3 runs as push-to-talk and the Stage 5 page is typing-only. Do the voice demo on a laptop.
+
 ## Run
 
 ```bash
@@ -44,6 +48,7 @@ All settings (models, wake word and its spellings, audio thresholds, paths) are 
 | `va/speech_in.py` | noise-calibrated segmenter, microphone, faster-whisper / mlx-whisper |
 | `va/wake.py` | loose wake-word matching |
 | `va/memory.py` | Qdrant memory with Ollama embeddings, background fact extraction |
+| `va/colab.py` | Colab only: record a clip with the browser's mic, push-to-talk turn |
 | `va/assistant.py` | ties it together: loader, listener and worker threads, state for the page |
 | `app.py` | Streamlit page |
 | `cli.py` | terminal front end |

@@ -79,6 +79,20 @@ class Segmenter:
         return None
 
 
+    def flush(self) -> np.ndarray | None:
+        """End of a recording: return the utterance in progress, if there is one."""
+        audio, voiced = (np.concatenate(self.frames) if self.frames else None), self.voiced
+        self.reset()
+        return audio if audio is not None and voiced >= self.min_speech_frames else None
+
+    def split(self, audio: np.ndarray) -> list[np.ndarray]:
+        """Cut a whole recording into utterances (used for clips recorded in the browser)."""
+        n = int(self.sr * self.frame_s)
+        out = [u for i in range(0, len(audio) - n + 1, n) if (u := self.feed(audio[i:i + n])) is not None]
+        last = self.flush()
+        return out + ([last] if last is not None else [])
+
+
 class Microphone:
     """Continuous capture with sounddevice. Frames go into a queue read by the listener thread."""
 

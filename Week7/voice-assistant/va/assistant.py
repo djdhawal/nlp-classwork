@@ -29,8 +29,12 @@ _HALLUCINATIONS = re.compile(r"^\W*(thank you|thanks for watching|you|bye|okay|\
 
 
 class Assistant:
-    def __init__(self, cfg: dict, voice: bool = True, speak: bool = True, model: str | None = None):
+    def __init__(self, cfg: dict, voice: bool = True, speak: bool = True, model: str | None = None,
+                 stt: bool | None = None):
+        """voice: listen on the microphone. stt: load speech to text even without a microphone
+        (Colab: clips recorded in the browser are passed to handle_audio)."""
         self.cfg, self.voice, self.speak, self.model_name = cfg, voice, speak, model
+        self.stt = voice if stt is None else stt
         setup_logging(cfg)
         self.store = AppointmentStore(resolve_path(cfg, cfg["appointments"]["db_path"]))
         self.memory = None
@@ -71,9 +75,11 @@ class Assistant:
                 log.warning("memory disabled: %s", exc)
             self.agent = Agent(self.cfg, self.store, self.memory, model=self.model_name)
             self.agent.warm_up()
-            if self.voice:
-                from .speech_in import Microphone, Transcriber
+            if self.stt or self.voice:
+                from .speech_in import Transcriber
                 self.transcriber = Transcriber(self.cfg)
+            if self.voice:
+                from .speech_in import Microphone
                 self.mic = Microphone(self.cfg).start()
                 threading.Thread(target=self._listen, name="listener", daemon=True).start()
             threading.Thread(target=self._work, name="worker", daemon=True).start()
@@ -217,11 +223,19 @@ class Assistant:
             except Exception:
                 log.exception("transcription failed")
 
-    def _handle_utterance(self, text: str) -> None:
+    def handle_audio(self, audio, started_at: float | None = None) -> str:
+        """Transcribe one utterance recorded elsewhere and act on it like the listener would.
+
+        started_at (time.monotonic()) is when the speech started, for the follow-up window."""
+        text = self.transcriber.transcribe(audio)
+        self._handle_utterance(text, started_at)
+        return text
+
+    def _handle_utterance(self, text: str, started_at: float | None = None) -> None:
         if not text or _HALLUCINATIONS.match(text):
             return
         command = self.wake.find(text)
-        in_follow_up = time.monotonic() < self.follow_up_until
+        in_follow_up = (started_at or time.monotonic()) < self.follow_up_until
         if command is None and in_follow_up:
             command = text
         action = "ignored (no wake word)" if command is None else "wake only" if command == "" else "command"
