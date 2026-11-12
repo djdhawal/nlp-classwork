@@ -1,0 +1,11 @@
+# Python 3.10+
+ollama>=0.5            # chat + embeddings, with tool calling
+qdrant-client>=1.9     # memory store
+pyyaml
+numpy
+sounddevice            # microphone and beep
+faster-whisper         # speech to text (all platforms)
+# mlx-whisper          # speech to text, much faster on Apple Silicon (set stt.backend: mlx-whisper)
+pyttsx3; platform_system == "Windows"   # text to speech on Windows (macOS uses `say`, Linux `espeak-ng`)
+streamlit>=1.37        # web page (needs st.fragment)
+pandas

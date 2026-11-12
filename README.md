@@ -13,6 +13,7 @@ Notebooks, assignments, and small apps from an NLP course. It covers text basics
 | [Week4/](Week4/) | LLM training data, deduplication, parallelism, mixture of experts, multi-head latent attention, model families, and BabyQwen pretraining |
 | [Week5/](Week5/) | LoRA and PEFT, RLHF / DPO / GRPO, decoding strategies, LLM evaluation, and BabyQwen fine-tuning and knowledge injection |
 | [Week6/](Week6/) | RAG end to end: ingestion (web, PDF, OCR, speech), chunking, vector databases, hybrid retrieval, query rewriting, reranking, prompting, evaluation, and citations |
+| [Week7/](Week7/) | Exercise 7: a local, always-on voice assistant (wake word, speech to text, tool-calling agent, memory, text to speech, Streamlit page) |
 
 HTML exports of the graded notebooks sit next to the `.ipynb` files.
 
@@ -26,6 +27,7 @@ HTML exports of the graded notebooks sit next to the `.ipynb` files.
 | [news_search/](news_search/) | Qdrant + SentenceTransformers news search. See its [Readme](news_search/Readme.md) |
 | [Week6/news-scrapper/](Week6/news-scrapper/) | Scrapy spider for financial news sites. See its [README](Week6/news-scrapper/README.md) |
 | [Week6/rag_common.py](Week6/rag_common.py) | Shared helpers for the Week 6 RAG notebooks |
+| [Week7/voice-assistant/](Week7/voice-assistant/) | Exercise 7 voice assistant "Loop". See its [README](Week7/voice-assistant/README.md) |
 
 ## Setup
 
