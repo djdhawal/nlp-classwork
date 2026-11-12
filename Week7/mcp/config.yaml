@@ -1,0 +1,17 @@
+# MCP project configuration
+
+server:
+  # URL exposed by the streamable-HTTP transport (math_server, etc.)
+  http_url: "http://localhost:8000/mcp/"
+  # Mount path used by FastMCP when running in streamable-http mode
+  mount_path: "/mcp"
+  # Default transport for the three local servers (stdio | streamable-http)
+  default_transport: "stdio"
+
+# LLM host/model come from ../config.yaml (ollama.url, ollama.models[0]).
+
+paths:
+  # Both paths are relative to the course root directory
+  # (2 levels above this file: mcp/ -> week7/ -> code/)
+  sample_file: "week7/Vincent_van_Gogh.pdf.pdf"
+  allowed_root: "week7"

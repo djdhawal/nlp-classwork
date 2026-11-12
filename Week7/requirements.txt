@@ -1,0 +1,37 @@
+# Week 7: Strands Agents, fully local (Ollama).
+
+# --- Strands Agents ---
+strands-agents
+strands-agents-tools
+
+# --- MCP (Model Context Protocol) ---
+mcp<2        # the course servers use the v1 API (mcp.server.fastmcp); mcp 2.x renamed it
+
+# --- Memory (7.3) and Agentic RAG (7.6): Qdrant server ---
+mem0ai>=2
+qdrant-client
+# 7.6 queries the week 6 collection with the same embedding model as week 6
+sentence-transformers
+langchain-huggingface
+langchain-qdrant
+datasets
+
+# --- LangChain agents (7.4 Pandas, 7.5 Database), pointed at local Ollama ---
+langchain
+langchain-classic
+langchain-openai
+langchain-experimental
+langchain-community
+sqlalchemy
+
+# --- Tools and data (7.1 to 7.6) ---
+ddgs        # RecipeBot (recipe-bot-cli)
+requests
+pyyaml
+pydantic
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+ipykernel

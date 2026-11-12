@@ -1,0 +1,31 @@
+# Week 7 config: Strands Agents on a local Ollama model (no cloud).
+
+ollama:
+  url: "http://localhost:11434"
+  models:
+    - "gemma4:e2b-mlx"          # the only chat model used in week 7 (agents, judge, analyst, memory extraction)
+  langchain_model: "gemma4:e4b-mlx"        # 7.4 and 7.5 (LangChain agents): the e2b model is too unreliable at text-to-code; ollama pull gemma4:e4b-mlx
+  embed_model: "nomic-embed-text:latest"   # ollama pull nomic-embed-text
+  embed_dims: 768
+
+strands:
+  temperature: 0.2              # low = more reliable tool calling on small local models
+  num_ctx: 8192
+
+qdrant:
+  url: "http://localhost:6333"  # only used if a path below is set to null
+
+memory:                         # 7.3: mem0 collection on the Qdrant server above (qdrant_path only used by memory-agent-cli)
+  qdrant_path: "/tmp/week7_mem0_qdrant"
+  collection: "agent_memories"
+
+rag:                            # 7.6: Agentic RAG on the week 6 HotpotQA corpus (Qdrant server, collection hotpotqa_passages)
+  model: "gemma4:12b-mlx"       # the agent must chain several searches: the small e2b model gives up too early
+  top_k: 3                      # paragraphs per search (the week 6 setting)
+  n_questions: 10               # answerable questions: the first N of the shared week 6 sample of 15 (set 15 for all)
+  week6_dir: "../week6"         # where rag_common.py and week6/config.yaml live
+
+tools:
+  appointments_db: "/tmp/week7_appointments.db"    # appointment-cli
+  plots_dir: "/tmp/week7_plots"                    # 7.4
+  sales_db: "/tmp/week7_company_sales.db"          # 7.5
