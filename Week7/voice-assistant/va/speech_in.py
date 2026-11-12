@@ -4,6 +4,7 @@ from __future__ import annotations
 import collections
 import logging
 import queue
+import re
 import time
 
 import numpy as np
@@ -144,7 +145,14 @@ class Transcriber:
         self.sr = cfg["audio"]["sample_rate"]
         if self.backend == "faster-whisper":
             from faster_whisper import WhisperModel
-            self.model = WhisperModel(self.model_name, device="auto", compute_type=s.get("compute_type", "int8"))
+            self.model = WhisperModel(self.model_name, device=s.get("device", "auto"), compute_type=s.get("compute_type", "int8"))
+            try:   # the GPU build needs CUDA 12 libraries, which some machines (e.g. Colab) do not have
+                list(self.model.transcribe(np.zeros(self.sr // 2, dtype=np.float32), language="en")[0])
+            except RuntimeError as exc:
+                if not re.search(r"cuda|cublas|cudnn", str(exc), re.I):
+                    raise
+                log.warning("speech to text on the GPU failed (%s); using the CPU", exc)
+                self.model = WhisperModel(self.model_name, device="cpu", compute_type="int8")
         elif self.backend == "mlx-whisper":
             import mlx_whisper
             self.model = mlx_whisper

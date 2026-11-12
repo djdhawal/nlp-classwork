@@ -59,6 +59,7 @@ audio:
 stt:
   backend: "faster-whisper"     # faster-whisper | mlx-whisper
   model: "small.en"             # faster-whisper size, or an mlx repo such as "mlx-community/whisper-small.en-mlx"
+  device: "auto"                # auto | cuda | cpu (falls back to cpu if the GPU libraries are missing)
   compute_type: "int8"
   initial_prompt: "Loop, book an appointment. Loop, what is on my calendar?"
 
