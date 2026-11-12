@@ -1,0 +1,72 @@
+# All settings for the voice assistant. Paths are relative to this file.
+
+assistant:
+  name: "Loop"                  # what the assistant calls itself
+  timezone: null                # null = the laptop's local time zone
+  follow_up_seconds: 8          # after a reply, accept speech without the wake word for this long
+  history_turns: 8              # how many past user turns the agent sees
+
+llm:
+  host: "http://localhost:11434"
+  model: "gemma4:12b-mlx"       # any Ollama chat model with tool calling
+  compare_models:               # Stage 6: the eight checks are run on each of these
+    - "gemma4:12b-mlx"
+    - "qwen3:8b"
+  temperature: 0.0
+  keep_alive: "60m"             # keep the model loaded between requests
+  think: false                  # for thinking models (qwen3, gpt-oss); null = do not send the flag
+  max_tool_rounds: 6
+  guards: true                  # code-level checks on tool calls (see Stage 1)
+
+embeddings:
+  model: "nomic-embed-text"
+  query_prefix: "search_query: "        # nomic-embed-text expects these prefixes
+  document_prefix: "search_document: "
+
+appointments:
+  db_path: "data/appointments.db"
+
+memory:
+  qdrant_url: "http://localhost:6333"   # docker compose up -d (Week6/docker-compose.yml)
+  qdrant_path: null                     # or a folder, e.g. "data/qdrant", for embedded Qdrant (one process only)
+  collection: "voice_assistant_memory"
+  top_k: 4
+  min_score: 0.45                       # ignore matches below this cosine similarity
+  duplicate_score: 0.92                 # do not store a fact this close to an existing one
+  extract_in_background: true
+
+wake:
+  word: "loop"
+  # Spellings the speech-to-text model produced for "Loop". Add more from logs/assistant.log.
+  variants: ["loop", "loops", "loop's", "looped", "lupe", "loupe", "loup", "luup", "lup", "lube", "lou", "lu"]
+  fillers: ["ok", "okay", "hey", "hi", "hello", "so", "um", "uh", "oh", "yo", "alright", "please"]
+
+audio:
+  enabled: true                 # false = typing only (no microphone)
+  sample_rate: 16000
+  frame_ms: 30
+  calibration_seconds: 1.0      # measure the room's noise level for this long at start-up
+  threshold_factor: 3.0         # speech = louder than noise level x this
+  min_threshold: 0.006          # never use a threshold below this RMS
+  preroll_seconds: 0.35         # audio kept from before speech starts
+  end_silence_seconds: 0.6      # quiet this long ends an utterance
+  min_speech_seconds: 0.3       # shorter blips are dropped
+  max_utterance_seconds: 20
+  unmute_delay_seconds: 0.35    # keep the mic muted this long after speech ends (room echo)
+  input_device: null            # null = default microphone
+  start_tone: true              # short beep when it starts listening again
+
+stt:
+  backend: "faster-whisper"     # faster-whisper | mlx-whisper
+  model: "small.en"             # faster-whisper size, or an mlx repo such as "mlx-community/whisper-small.en-mlx"
+  compute_type: "int8"
+  initial_prompt: "Loop, book an appointment. Loop, what is on my calendar?"
+
+tts:
+  backend: "auto"               # auto | say | espeak | pyttsx3
+  voice: null                   # e.g. "Samantha" for macOS say
+  rate: 190                     # words per minute
+
+logging:
+  path: "logs/assistant.log"
+  level: "INFO"
