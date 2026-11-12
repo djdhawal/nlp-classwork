@@ -115,27 +115,29 @@ def run_stage1(cfg: dict, model: str | None = None, verbose: bool = True) -> dic
 
 
 def run_stage2(cfg: dict) -> dict:
-    """Time to first speech for a booking, and how fast stop() silences a sentence."""
-    from va.assistant import Assistant
-    cfg = with_overrides(cfg, **{"appointments.db_path": "data/check_stage2.db", "memory.extract_in_background": False})
-    a = Assistant(cfg, voice=False, speak=True).start()
-    a.wait_ready()
-    a.store.clear()
+    """Time to first speech for a booking, and how fast stop() silences a sentence.
+
+    Uses only Stage 1 and 2 code (agent + speaker), with an empty in-memory database."""
+    from va.speech_out import Speaker
+    agent = Agent(cfg, AppointmentStore(":memory:"), memory=None)
+    agent.warm_up()
+    speaker = Speaker(cfg)
+    speaker.reset_timer()
     t0 = time.perf_counter()
-    tid = a.submit("book a dentist appointment tomorrow at 3 pm in Chicago")
-    while a.speaker.first_audio_at is None or a.speaker.first_audio_at < t0:
+    reply = agent.run("book a dentist appointment tomorrow at 3 pm in Chicago", on_text=speaker.feed).reply
+    speaker.flush()
+    while speaker.first_audio_at is None and time.perf_counter() - t0 < 60:
         time.sleep(0.01)
-        if time.perf_counter() - t0 > 60:
-            raise TimeoutError("no speech after 60 s")
-    first = a.speaker.first_audio_at - t0
-    while a.turn(tid)["state"] not in ("done", "error"):
-        time.sleep(0.05)
-    a.speaker.wait()
-    a.speaker.say("This is a long sentence that keeps going and going so that we have time to interrupt it in the middle.")
+    if speaker.first_audio_at is None:
+        raise TimeoutError("no speech after 60 s")
+    first = speaker.first_audio_at - t0
+    print("reply:", reply)
+    speaker.wait()
+    speaker.say("This is a long sentence that keeps going and going so that we have time to interrupt it in the middle.")
     time.sleep(1.0)
     t1 = time.perf_counter()
-    a.stop_speaking()
-    while not a.speaker.silent():
+    speaker.stop()
+    while not speaker.silent():
         time.sleep(0.005)
     stop = time.perf_counter() - t1
     print(f"first words after {first:.2f} s (need < 4)   ->  {'PASS' if first < 4 else 'FAIL'}")
