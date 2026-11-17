@@ -1,0 +1,18 @@
+# Assignment 3 (Python 3.10+). Colab already has torch, numpy, pandas, matplotlib, scikit-learn.
+sentence-transformers>=3.0
+qdrant-client>=1.9
+openai>=1.40
+requests
+feedparser>=6.0
+trafilatura>=2.0
+streamlit>=1.37
+pyyaml
+# 3.3 evaluation
+deepeval
+# 3.4 bonus
+bertopic==0.17.4
+umap-learn==0.6.0
+hdbscan==0.8.44
+gensim==4.4.0
+plotly
+kagglehub

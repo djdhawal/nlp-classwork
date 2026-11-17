@@ -28,3 +28,8 @@ __pycache__/
 # Week 6 data and exercise outputs
 Week6/data/
 ex6_results/
+
+# Assignment 3: keep the scraped corpus, ignore generated outputs
+!assignment3/data/news_articles.csv
+assignment3/outputs/
+assignment3/.deepeval/
