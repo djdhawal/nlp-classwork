@@ -4,6 +4,7 @@ The bi-encoder (bge-small) embeds query and chunk separately; the cross-encoder 
 query and the chunk together, which is slower but more accurate. The caller retrieves more
 candidates than it needs (e.g. 4 * k) and keeps the best k after re-ranking.
 """
+
 from sentence_transformers import CrossEncoder
 
 from .config import RERANK_MODEL, TOP_K
@@ -26,7 +27,14 @@ def rerank(query, hits, k=TOP_K):
     if not hits:
         return []
     scores = load_model().predict([(query, h["text"]) for h in hits], show_progress_bar=False)
-    out = [{**h, "dense_score": h.get("dense_score", h["score"]), "dense_rank": h.get("dense_rank", h["rank"]),
-            "score": float(s)} for h, s in zip(hits, scores)]
+    out = [
+        {
+            **h,
+            "dense_score": h.get("dense_score", h["score"]),
+            "dense_rank": h.get("dense_rank", h["rank"]),
+            "score": float(s),
+        }
+        for h, s in zip(hits, scores)
+    ]
     out.sort(key=lambda h: h["score"], reverse=True)
     return [{**h, "rank": r} for r, h in enumerate(out[:k], 1)]

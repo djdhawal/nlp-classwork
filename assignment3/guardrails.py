@@ -1,6 +1,6 @@
 """Section 3.2 step 8: three guardrails around the RAG flow.
 
-1. Input guard (before retrieval): empty / too long queries, prompt-injection phrases, personal data.
+1. Input guard (before retrieval): empty / too long queries, prompt injection, personal data.
    Why: OWASP's Top 10 for LLM apps lists prompt injection as risk #1 and sensitive-information
    disclosure as #2. A news assistant has no reason to receive SSNs or "ignore your instructions".
 2. Retrieval guard (before generation): abstain when even the best passage is a weak match, and
@@ -16,12 +16,12 @@
 
 Each guard returns a GuardResult(ok, reason, details). ok=False means "block or replace".
 """
+
 import re
 from dataclasses import dataclass, field
 
 from . import config
 from .prompts import NOT_FOUND, extract_citations
-
 
 # bge-small cosine on this corpus: off-topic chunks score about 0.55-0.59, relevant ones 0.65-0.85,
 # so config.MIN_RETRIEVAL_SCORE (0.55) lets off-topic questions through. 0.62 sits in the gap.
@@ -65,20 +65,26 @@ def check_input(query):
     if not q:
         return GuardResult(False, "empty query", {"query": q})
     if len(q) > config.MAX_QUERY_CHARS:
-        return GuardResult(False, f"query too long ({len(q)} > {config.MAX_QUERY_CHARS} chars)", {"query": q})
+        return GuardResult(
+            False, f"query too long ({len(q)} > {config.MAX_QUERY_CHARS} chars)", {"query": q}
+        )
     hits = [p.pattern for p in _INJECTION if p.search(q)]
     if hits:
         return GuardResult(False, "possible prompt injection", {"query": q, "patterns": hits})
     blocked = [name for name, rx in BLOCK_PII.items() if rx.search(q)]
     if blocked:
-        return GuardResult(False, f"sensitive personal data in query ({', '.join(blocked)})", {"query": q})
+        return GuardResult(
+            False, f"sensitive personal data in query ({', '.join(blocked)})", {"query": q}
+        )
     masked, found = q, []
     for name, rx in MASK_PII.items():
         if rx.search(masked):
             found.append(name)
             masked = rx.sub(f"[{name.upper()}]", masked)
     if found:
-        return GuardResult(True, f"PII masked ({', '.join(found)})", {"query": masked, "masked": found})
+        return GuardResult(
+            True, f"PII masked ({', '.join(found)})", {"query": masked, "masked": found}
+        )
     return GuardResult(True, "ok", {"query": q})
 
 
@@ -99,7 +105,9 @@ def check_retrieval(hits, min_score=MIN_SCORE):
     details = {"best_score": best, "min_score": min_score, "injected": injected}
     if best < min_score:
         return GuardResult(False, f"best retrieval score {best:.3f} < {min_score}", details)
-    return GuardResult(True, "ok" if not injected else f"ok (instructions removed from {injected})", details)
+    return GuardResult(
+        True, "ok" if not injected else f"ok (instructions removed from {injected})", details
+    )
 
 
 _SENT = re.compile(r"(?<=[.!?])\s+")
@@ -118,14 +126,20 @@ def clean_hits(hits):
 # ---------------------------------------------------------------- 3. output guard
 # Small models often abstain in their own words ("There is no information about ...") and still
 # add citations. An answer that *starts* like this is treated as an abstention.
-SOFT_REFUSAL = re.compile(r"^\W*(there is no (information|mention)|(the )?(provided )?(sources|passages) do not "
-                          r"(contain|mention|provide)|no information|i (cannot|can't|don't) (find|answer|know))",
-                          re.IGNORECASE)
+SOFT_REFUSAL = re.compile(
+    r"^\W*(there is no (information|mention)|(the )?(provided )?(sources|passages) do not "
+    r"(contain|mention|provide)|no information|i (cannot|can't|don't) (find|answer|know))",
+    re.IGNORECASE,
+)
 
 
 def is_refusal(answer):
     a = (answer or "").strip()
-    return NOT_FOUND.lower().rstrip(".") in a.lower() and len(a) < len(NOT_FOUND) + 40 or bool(SOFT_REFUSAL.search(a))
+    return (
+        NOT_FOUND.lower().rstrip(".") in a.lower()
+        and len(a) < len(NOT_FOUND) + 40
+        or bool(SOFT_REFUSAL.search(a))
+    )
 
 
 def check_output(answer, hits):

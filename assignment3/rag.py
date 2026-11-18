@@ -1,22 +1,33 @@
 """Section 3.2 step 9: retrieval + generation in one real-time RAG flow.
 
-    query -> input guard -> retrieve (k, or 3k when re-ranking) -> retrieval guard
-          -> [re-rank to k] -> grounded prompt -> LLM -> output guard -> answer + citations
+query -> input guard -> retrieve (k, or 3k when re-ranking) -> retrieval guard
+      -> [re-rank to k] -> grounded prompt -> LLM -> output guard -> answer + citations
 """
+
 import time
 
 from . import config, guardrails, llm, prompts
 
 REFUSAL = prompts.NOT_FOUND
-OVERSAMPLE = 3  # with rerank=True, retrieve k*3 candidates and let the cross-encoder keep the best k
+OVERSAMPLE = (
+    3  # with rerank=True, retrieve k*3 candidates and let the cross-encoder keep the best k
+)
 
 
 def _blocked(reason):
     return f"I can't answer this request ({reason})."
 
 
-def answer(question, k=config.TOP_K, model=config.LLM, guard=True, rerank=False, strict=False,
-           collection=config.COLLECTION, hits=None):
+def answer(
+    question,
+    k=config.TOP_K,
+    model=config.LLM,
+    guard=True,
+    rerank=False,
+    strict=False,
+    collection=config.COLLECTION,
+    hits=None,
+):
     """Answer `question` from the news corpus.
 
     Returns a dict: question, answer, hits, citations, guard, latency_s, model (plus raw_answer,
@@ -26,8 +37,16 @@ def answer(question, k=config.TOP_K, model=config.LLM, guard=True, rerank=False,
     """
     t0 = time.time()
     report = {}
-    out = {"question": question, "answer": None, "raw_answer": None, "hits": [], "citations": [],
-           "guard": report, "latency_s": None, "model": model}
+    out = {
+        "question": question,
+        "answer": None,
+        "raw_answer": None,
+        "hits": [],
+        "citations": [],
+        "guard": report,
+        "latency_s": None,
+        "model": model,
+    }
 
     def done(text):
         out["answer"] = text
@@ -47,6 +66,7 @@ def answer(question, k=config.TOP_K, model=config.LLM, guard=True, rerank=False,
     # 2. retrieval (+ optional re-rank)
     if hits is None:
         from .index import retrieve
+
         hits = retrieve(query, k=k * OVERSAMPLE if rerank else k, collection=collection)
     g = guardrails.check_retrieval(hits)
     report["retrieval"] = g
@@ -55,6 +75,7 @@ def answer(question, k=config.TOP_K, model=config.LLM, guard=True, rerank=False,
         return done(REFUSAL)
     if rerank:
         from .rerank import rerank as rerank_fn
+
         hits = rerank_fn(query, hits, k=k)
     else:
         hits = hits[:k]
@@ -77,14 +98,27 @@ def answer(question, k=config.TOP_K, model=config.LLM, guard=True, rerank=False,
 
 def guard_summary(result):
     """One short string per guard, e.g. 'input: ok | retrieval: ok | output: ok'."""
-    return " | ".join(f"{name}: {'ok' if g.ok else 'FAIL - ' + g.reason}" for name, g in result["guard"].items())
+    return " | ".join(
+        f"{name}: {'ok' if g.ok else 'FAIL - ' + g.reason}" for name, g in result["guard"].items()
+    )
 
 
 def results_table(results):
     """DataFrame view of several answer() results."""
     import pandas as pd
 
-    return pd.DataFrame([{"question": r["question"], "answer": r["answer"],
-                          "citations": ", ".join(r["citations"]),
-                          "top_cosine": round(max(guardrails.dense_score(h) for h in r["hits"]), 3) if r["hits"] else None,
-                          "guards": guard_summary(r), "latency_s": r["latency_s"]} for r in results])
+    return pd.DataFrame(
+        [
+            {
+                "question": r["question"],
+                "answer": r["answer"],
+                "citations": ", ".join(r["citations"]),
+                "top_cosine": round(max(guardrails.dense_score(h) for h in r["hits"]), 3)
+                if r["hits"]
+                else None,
+                "guards": guard_summary(r),
+                "latency_s": r["latency_s"],
+            }
+            for r in results
+        ]
+    )

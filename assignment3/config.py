@@ -1,4 +1,5 @@
 """Shared settings: paths, models and RAG parameters. Every module reads from here."""
+
 import os
 import sys
 from pathlib import Path
@@ -10,17 +11,19 @@ IN_COLAB = "google.colab" in sys.modules or "COLAB_RELEASE_TAG" in os.environ
 
 # Data (committed, so a Colab clone has it) and outputs (gitignored; on Colab they go to Drive).
 DATA_DIR = PKG_DIR / "data"
-ARTICLES_CSV = DATA_DIR / "news_articles.csv"      # columns: article_id, source, url, title, date, text
+ARTICLES_CSV = (
+    DATA_DIR / "news_articles.csv"
+)  # columns: article_id, source, url, title, date, text
 OUT_DIR = Path(os.environ.get("A3_OUT_DIR", PKG_DIR / "outputs"))
-CACHE_DIR = OUT_DIR / "cache"                        # embeddings (.npy), LLM reply cache
-QDRANT_PATH = OUT_DIR / "qdrant_db"                  # embedded Qdrant, no server needed
-RESULTS_DIR = OUT_DIR / "results"                    # tables and figures for the report
+CACHE_DIR = OUT_DIR / "cache"  # embeddings (.npy), LLM reply cache
+QDRANT_PATH = OUT_DIR / "qdrant_db"  # embedded Qdrant, no server needed
+RESULTS_DIR = OUT_DIR / "results"  # tables and figures for the report
 
 # Scraping
 N_ARTICLES = 500
 
 # Chunking (baseline)
-CHUNK_SIZE = 1000            # characters
+CHUNK_SIZE = 1000  # characters
 CHUNK_OVERLAP = 150
 
 # Embeddings: the search model picked in Assignment 2 (bge-small needs a query prefix).
@@ -42,14 +45,14 @@ PROVIDERS = {
     "openai": {"base_url": "https://api.openai.com/v1", "key_env": "OPENAI_API_KEY"},
     "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY"},
 }
-LLM = os.environ.get("A3_LLM", "ollama:qwen2.5:7b-instruct")          # default generator
-COMPARE_LLMS = ["ollama:qwen2.5:7b-instruct", "ollama:llama3.2:3b"]   # 3.2 step 6
+LLM = os.environ.get("A3_LLM", "ollama:qwen2.5:7b-instruct")  # default generator
+COMPARE_LLMS = ["ollama:qwen2.5:7b-instruct", "ollama:llama3.2:3b"]  # 3.2 step 6
 JUDGE_LLM = os.environ.get("A3_JUDGE", "ollama:qwen2.5:7b-instruct")  # DeepEval judge
 TEMPERATURE = 0.0
 MAX_TOKENS = 512
 
 # Guardrails
-MIN_RETRIEVAL_SCORE = 0.55   # cosine similarity; below this for every chunk -> abstain
+MIN_RETRIEVAL_SCORE = 0.55  # cosine similarity; below this for every chunk -> abstain
 MAX_QUERY_CHARS = 500
 
 

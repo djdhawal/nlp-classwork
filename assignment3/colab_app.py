@@ -4,6 +4,7 @@ On Colab the app is shown through the Colab port proxy; if that fails, a
 cloudflared quick tunnel gives a public https URL. Locally it is localhost.
 Close the notebook's Qdrant client first: embedded Qdrant allows one process.
 """
+
 import os
 import platform
 import re
@@ -16,7 +17,9 @@ from pathlib import Path
 from assignment3 import config
 
 APP = config.PKG_DIR / "app.py"
-CLOUDFLARED_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+CLOUDFLARED_URL = (
+    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+)
 _procs = {}
 
 
@@ -42,8 +45,11 @@ def _cloudflared(port):
         urllib.request.urlretrieve(CLOUDFLARED_URL, exe)
         exe.chmod(0o755)
     log = open(config.CACHE_DIR / "cloudflared.log", "w")
-    _procs["tunnel"] = subprocess.Popen([str(exe), "tunnel", "--url", f"http://localhost:{port}"],
-                                        stdout=log, stderr=subprocess.STDOUT)
+    _procs["tunnel"] = subprocess.Popen(
+        [str(exe), "tunnel", "--url", f"http://localhost:{port}"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+    )
     for _ in range(30):
         time.sleep(1)
         m = re.search(r"https://[\w-]+\.trycloudflare\.com", Path(log.name).read_text())
@@ -55,17 +61,39 @@ def _cloudflared(port):
 def launch(port=8501, tunnel=False, fake=False):
     """Start app.py on `port` and return the URL. tunnel=True forces cloudflared on Colab."""
     stop()
-    env = {**os.environ, "A3_OUT_DIR": str(config.OUT_DIR), "OLLAMA_URL": config.OLLAMA_URL,
-           "PYTHONPATH": str(config.ROOT)}
+    env = {
+        **os.environ,
+        "A3_OUT_DIR": str(config.OUT_DIR),
+        "OLLAMA_URL": config.OLLAMA_URL,
+        "PYTHONPATH": str(config.ROOT),
+    }
     if fake:
         env["A3_FAKE_RAG"] = "1"
     config.ensure_dirs()
     log = open(config.CACHE_DIR / "streamlit.log", "w")
     _procs["app"] = subprocess.Popen(
-        [sys.executable, "-m", "streamlit", "run", str(APP), "--server.port", str(port),
-         "--server.headless", "true", "--server.enableCORS", "false",
-         "--server.enableXsrfProtection", "false", "--browser.gatherUsageStats", "false"],
-        cwd=config.ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+        [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(APP),
+            "--server.port",
+            str(port),
+            "--server.headless",
+            "true",
+            "--server.enableCORS",
+            "false",
+            "--server.enableXsrfProtection",
+            "false",
+            "--browser.gatherUsageStats",
+            "false",
+        ],
+        cwd=config.ROOT,
+        env=env,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+    )
     if not _healthy(port):
         print(f"Streamlit did not start; see {log.name}")
         return None
@@ -76,6 +104,7 @@ def launch(port=8501, tunnel=False, fake=False):
             try:
                 from google.colab import output
                 from google.colab.output import eval_js
+
                 url = eval_js(f"google.colab.kernel.proxyPort({port})")
                 output.serve_kernel_port_as_window(port, anchor_text="Open the chat app")
                 print(f"App running: {url}  (works in this browser session only)")
