@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from assignment3 import config  # noqa: E402
 
 FAKE = os.environ.get("A3_FAKE_RAG") == "1"
-CITE = re.compile(r"\[([A-Z]\d{4}-C\d+)\]")
+CITE = re.compile(r"\[\s*([A-Z]\d{4}-C\d+)\s*(?:\|[^\]]*)?\]")
 
 
 def fake_answer(
@@ -87,13 +87,20 @@ def guard_info(g):
     return bool(getattr(g, "ok", True)), str(getattr(g, "reason", ""))
 
 
+def md_safe(text):
+    """Escape $ so Streamlit does not render '$115.8 billion ... $155' as LaTeX math."""
+    return str(text).replace("$", r"\$")
+
+
 def with_links(text, hits):
-    """Make [A0001-C02] citations clickable links to the article."""
+    """Make [A0001-C02] and [A0001-C02 | Title] citations clickable links to the article."""
     urls = {h.get("chunk_id"): h.get("url") for h in hits}
-    return CITE.sub(
-        lambda m: f"[[{m.group(1)}]]({urls[m.group(1)]})" if urls.get(m.group(1)) else m.group(0),
-        text,
-    )
+
+    def link(m):
+        url = urls.get(m.group(1))
+        return f"[[{m.group(0)[1:-1].strip()}]]({url})" if url else m.group(0)
+
+    return CITE.sub(link, md_safe(text))
 
 
 def show_reply(res):
@@ -115,9 +122,8 @@ def show_reply(res):
         with st.expander(f"Sources ({len(hits)})"):
             for h in hits:
                 mark = " ✅" if h.get("chunk_id") in cites else ""
-                title = (
-                    f"[{h.get('title', '')}]({h['url']})" if h.get("url") else h.get("title", "")
-                )
+                name = md_safe(h.get("title", ""))
+                title = f"[{name}]({h['url']})" if h.get("url") else name
                 st.markdown(
                     f"**{h.get('rank', '')}. {title}**{mark}  \n"
                     f"`{h.get('chunk_id', '')}` · {h.get('source', '')} · {h.get('date', '')} · "
@@ -161,14 +167,14 @@ except Exception as e:  # most often: Qdrant folder locked by the notebook
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         if msg["role"] == "user":
-            st.markdown(msg["content"])
+            st.markdown(md_safe(msg["content"]))
         else:
             show_reply(msg["content"])
 
 if question := st.chat_input("Ask about the news..."):
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
-        st.markdown(question)
+        st.markdown(md_safe(question))
     with st.chat_message("assistant"):
         with st.spinner("Searching and generating..."):
             try:
